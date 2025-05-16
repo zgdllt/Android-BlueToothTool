@@ -107,7 +107,18 @@ public class BluetoothManager {
     public String getAddress() {
         return address;
     }
-
+    public int getRssi() {
+        if (mBluetoothDevice != null) {
+            try {
+                if (mBluetoothDevice.getUuids() != null && mBluetoothDevice.getUuids().length > 0) {
+                    return mBluetoothDevice.getUuids()[0].getUuid().hashCode();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return 0;
+    }
     @SuppressLint("MissingPermission")
     public String getDeviceName() {
         if (mBluetoothDevice != null) {
@@ -166,6 +177,19 @@ public class BluetoothManager {
         return i;
     }
 
+    public String receive() {
+        try {
+            byte[] data = new byte[1000];
+            int len = readAvailable(data);
+            if (len > 0) {
+                return new String(data, 0, len);
+            }
+        } catch (IOException | InterruptedException e) {
+            Log.e(TAG, "Error receiving data: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return null;
+    }
     public interface onBluetoothListener{
         void onReceived(String data);
     }

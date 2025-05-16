@@ -26,8 +26,10 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -45,6 +47,10 @@ public class MainActivity extends AppCompatActivity {
 
     private EditText etMsg;
     private TextView tvRecord;
+    private TextView RssiTextView;
+    private int Rssi,RssiThreshold;
+    private Switch autolock;
+    private boolean Ifautolock;
 
     private ScrollView scrollView;
     private static final int BLUETOOTH_PERMISSION_REQUEST_CODE = 1;
@@ -76,7 +82,8 @@ public class MainActivity extends AppCompatActivity {
         tvRecord = findViewById(R.id.textView);
         scrollView=findViewById(R.id.scrollView2);
         Button timeButton = findViewById(R.id.button4);
-
+        RssiTextView=findViewById(R.id.textView2);
+        autolock=findViewById(R.id.switch1);
         if (btManager != null) {
             if (btManager.isConnected()) {
                 setTitle("蓝牙连接到：" + btManager.getDeviceName());
@@ -98,7 +105,60 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
-
+        autolock.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                Ifautolock = b;
+                if (b) {
+                    Toast.makeText(getBaseContext(), "自动锁车已开启", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getBaseContext(), "自动锁车已关闭", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        findViewById(R.id.button6).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //获取当前蓝牙信号强度
+                if (btManager.isConnected())
+                {
+                    RssiThreshold = btManager.getRssi();
+                    Toast.makeText(getBaseContext(), "自动锁车信号强度阈值已设置为" + RssiThreshold, Toast.LENGTH_SHORT).show();
+                }
+                else
+                    Toast.makeText(getBaseContext(), "蓝牙未连接", Toast.LENGTH_SHORT).show();
+            }
+        });
+        // Timer to periodically update RSSI value
+        final android.os.Handler handler = new android.os.Handler();
+        final Runnable rssiUpdater = new Runnable() {
+            @Override
+            public void run() {
+                if (btManager != null && btManager.isConnected()) {
+                    Rssi = btManager.getRssi();
+                    RssiTextView.setText("RSSI: " + Rssi + " dBm");
+                    
+                    // Check if auto-lock should be triggered
+                    if (Ifautolock && Rssi < RssiThreshold) {
+                        // Signal is weaker than threshold, trigger lock
+                        btManager.send("lock");
+                        Toast.makeText(getBaseContext(), "信号弱，自动锁车", Toast.LENGTH_SHORT).show();
+                    }
+                    else if (Ifautolock && Rssi >= RssiThreshold) {
+                        // Signal is strong, do not lock
+                        btManager.send("unlock");
+                        Toast.makeText(getBaseContext(), "信号强，已开锁", Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    RssiTextView.setText("蓝牙未连接");
+                }
+                
+                // Schedule next update
+                handler.postDelayed(this, 1000); // Update every second
+            }
+        };
+        // Start the RSSI updates
+        handler.post(rssiUpdater);
         //发送数据的按钮事件
         findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -110,25 +170,59 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.button3).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                startActivity(new Intent(MainActivity.this,MainActivity2.class));
+//                startActivity(new Intent(MainActivity.this,MainActivity2.class));
+                String lockingSiginal="lock",receive="";
+                //发送数据到蓝牙串口
+                if(!btManager.isConnected())
+                    Toast.makeText(getBaseContext(), "蓝牙未连接", Toast.LENGTH_SHORT).show();
+                else {
+                    btManager.send(lockingSiginal);
+                    Log.d("Sending:", lockingSiginal);
+                    receive = btManager.receive();
+                    if (receive == "locked")
+                        Toast.makeText(getBaseContext(), "关锁成功", Toast.LENGTH_SHORT).show();
+                    else Toast.makeText(getBaseContext(), "关锁失败", Toast.LENGTH_SHORT).show();
+                }
+
             }
         });
-        //授时按钮
+        findViewById(R.id.button5).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+//                startActivity(new Intent(MainActivity.this,MainActivity2.class));
+                String UnlockingSiginal="unlock",receive="";
+                //发送数据到蓝牙串口
+                if(!btManager.isConnected())
+                    Toast.makeText(getBaseContext(), "蓝牙未连接", Toast.LENGTH_SHORT).show();
+                else {
+                    btManager.send(UnlockingSiginal);
+                    Log.d("Sending:", UnlockingSiginal);
+                    receive = btManager.receive();
+                    if (receive == "unlocked")
+                        Toast.makeText(getBaseContext(), "解锁成功", Toast.LENGTH_SHORT).show();
+                    else Toast.makeText(getBaseContext(), "解锁失败", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        //寻车按钮
         timeButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // 获取当前系统时间
-                Date currentTime = new Date();
-                // 定义日期时间格式
-                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-                // 格式化日期时间并加上大写'R'
-                String formattedTime = dateFormat.format(currentTime) + "R";
-                // 打印或使用格式化后的时间
-                Log.d("Formatted Time", formattedTime);
+                String FindingSiginal="alarm",receive="";
                 //发送数据到蓝牙串口
-                btManager.send(formattedTime);
+                if(!btManager.isConnected())
+                    Toast.makeText(getBaseContext(), "蓝牙未连接", Toast.LENGTH_SHORT).show();
+                else {
+                    btManager.send(FindingSiginal);
+                    Log.d("Sending:", FindingSiginal);
+                    receive = btManager.receive();
+                    if (receive == "alarming")
+                        Toast.makeText(getBaseContext(), "寻车中", Toast.LENGTH_SHORT).show();
+                    else Toast.makeText(getBaseContext(), "寻车失败", Toast.LENGTH_SHORT).show();
+                }
             }
         });
+
     }
     private void checkBluetoothPermissions() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
